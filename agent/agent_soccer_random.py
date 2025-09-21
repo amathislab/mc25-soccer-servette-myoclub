@@ -4,6 +4,8 @@ import time
 
 import copy
 import numpy as np
+import torch
+import torch.nn as nn
 
 import evaluation_pb2
 import evaluation_pb2_grpc
@@ -16,6 +18,36 @@ def pack_for_grpc(entity):
 def unpack_for_grpc(entity):
     return pickle.loads(entity)
 
+
+class PolicyNetwork(nn.Module):
+    """Neural network for policy distillation."""
+
+    def __init__(self, obs_dim: int, action_dim: int, hidden_layers: list = [2048, 1024, 512, 256]):
+        super().__init__()
+
+        layers = []
+        prev_dim = obs_dim
+
+        for hidden_dim in hidden_layers:
+            layers.extend([
+                nn.Linear(prev_dim, hidden_dim, bias=False),
+                nn.LayerNorm(hidden_dim),
+                nn.SiLU(),
+            ])
+            prev_dim = hidden_dim
+
+        layers.append(nn.Linear(prev_dim, action_dim))
+        self.network = nn.Sequential(*layers)
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.orthogonal_(module.weight, gain=1.0)
+            if module.bias is not None:
+                torch.nn.init.constant_(module.bias, 0.0)
+
+    def forward(self, obs):
+        return self.network(obs)
 
 
 class EnvShell:
@@ -34,7 +66,7 @@ class EnvShell:
             ).SerializedEntity
         )
         self.observation_space = gym.spaces.Box(shape=(obs_len,), high=1e6, low=-1e6)
-        self.action_space = gym.spaces.Box(shape=(action_len,), high=1.0, low=0.0)
+        self.action_space = gym.spaces.Box(shape=(action_len,), high=10.0, low=-10.0)
         print("Action Space", self.action_space)
         print("Observation Space", self.observation_space)
         # TODO case for remapping of [-1 1] -> [0 1]
@@ -44,9 +76,40 @@ class Policy:
 
     def __init__(self, env):
         self.action_space = env.action_space
+        self.obs_dim = env.observation_space.shape[0]
+        self.action_dim = env.action_space.shape[0]
 
-    def __call__(self, env):
-        return self.action_space.sample()
+        self.device = torch.device("cpu")  # EvalAI uses CPU
+        self.model = PolicyNetwork(
+            obs_dim=self.obs_dim,
+            action_dim=self.action_dim,
+            hidden_layers=[2048, 1024, 1024, 512, 512, 256]
+        ).to(self.device)
+
+        # Load model weights
+        model_path = "agent/best_model.pth"
+        if os.path.exists(model_path):
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.model.eval()
+            print(f"Loaded trained model from {model_path}")
+            self.use_trained_model = True
+        else:
+            print(f"Model file not found at {model_path}.")
+            raise FileNotFoundError(f"Model file not found at {model_path}.")
+
+    def __call__(self, obs):
+        if not self.use_trained_model:
+            return self.action_space.sample()
+
+        # Convert observation to tensor
+        obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
+
+        # Get action from model, action before sigmoid to get activation in [0, 1]
+        with torch.no_grad():
+            action = self.model(obs_tensor).squeeze(0).cpu().numpy()
+            
+        return action
 
 custom_obs_keys = [      
     'internal_qpos',
@@ -108,7 +171,7 @@ while not flat_completed:
             f"Trial: {trial}, Iteration: {counter} flag_trial: {flag_trial} flat_completed: {flat_completed}"
         )
 
-        action = env_shell.action_space.sample()
+        action = policy(obs)
         base = unpack_for_grpc(
             stub.act_on_environment(
                 evaluation_pb2.Package(SerializedEntity=pack_for_grpc(action))
