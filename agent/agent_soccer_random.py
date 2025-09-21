@@ -76,33 +76,45 @@ class Policy:
 
     def __init__(self, env):
         self.action_space = env.action_space
-        self.obs_dim = env.observation_space.shape[0]
-        self.action_dim = env.action_space.shape[0]
 
         self.device = torch.device("cpu")  # EvalAI uses CPU
         self.model = PolicyNetwork(
-            obs_dim=self.obs_dim,
-            action_dim=self.action_dim,
+            obs_dim=1292,
+            action_dim=290,
             hidden_layers=[2048, 1024, 1024, 512, 512, 256]
         ).to(self.device)
 
-        # Load model weights
-        model_path = "agent/best_model.pth"
-        if os.path.exists(model_path):
+        # Load model weights - try multiple possible paths
+        possible_paths = [
+            "best_model.pth",                    # Docker container (./agent copied to /)
+            "agent/best_model.pth",              # Local development
+            os.path.join(os.path.dirname(__file__), "best_model.pth"),  # Same directory as script
+        ]
+
+        model_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                model_path = path
+                break
+
+        if model_path:
             checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.model.eval()
             print(f"Loaded trained model from {model_path}")
             self.use_trained_model = True
         else:
-            print(f"Model file not found at {model_path}.")
-            raise FileNotFoundError(f"Model file not found at {model_path}.")
+            print(f"Model file not found. Tried: {possible_paths}")
+            raise FileNotFoundError(f"Model file not found. Tried: {possible_paths}")
 
     def __call__(self, obs):
         if not self.use_trained_model:
             return self.action_space.sample()
 
-        # Convert observation to tensor
+        # convert to tensor
+        if isinstance(obs, tuple):
+            obs = obs[0]  # Take observation from (obs, info) tuple
+        obs = np.asarray(obs, dtype=np.float32).flatten()
         obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
 
         # Get action from model, action before sigmoid to get activation in [0, 1]
@@ -170,7 +182,9 @@ while not flat_completed:
         print(
             f"Trial: {trial}, Iteration: {counter} flag_trial: {flag_trial} flat_completed: {flat_completed}"
         )
-
+        # Just to be sure
+        if isinstance(obs, tuple):
+            obs = obs[0]
         action = policy(obs)
         base = unpack_for_grpc(
             stub.act_on_environment(
