@@ -1,7 +1,6 @@
 import os
 import pickle
 import time
-import subprocess
 
 import copy
 import numpy as np
@@ -42,17 +41,17 @@ class Policy:
     def __init__(self, env):
         self.action_space = env.action_space
 
-        # Load trained PPO policy
+        # Load trained PPO policy from best_model
         possible_paths = [
-            "rl_model_9072096_steps.zip",
-            "agent/rl_model_9072096_steps.zip",
-            os.path.join(os.path.dirname(__file__), "rl_model_9072096_steps.zip"),
+            "best_model.zip",
+            "agent/best_model.zip",
+            os.path.join(os.path.dirname(__file__), "best_model.zip"),
         ]
 
         vecnorm_paths = [
-            "rl_model_vecnormalize_9072096_steps.pkl",
-            "agent/rl_model_vecnormalize_9072096_steps.pkl",
-            os.path.join(os.path.dirname(__file__), "rl_model_vecnormalize_9072096_steps.pkl"),
+            "vecnormalize.pkl",
+            "agent/vecnormalize.pkl",
+            os.path.join(os.path.dirname(__file__), "vecnormalize.pkl"),
         ]
 
         model_path = None
@@ -60,17 +59,6 @@ class Policy:
             if os.path.exists(path):
                 model_path = path
                 break
-
-        # Download from Google Drive
-        if not model_path:
-            download_path = os.path.join(os.path.dirname(__file__), "rl_model_9072096_steps.zip")
-            print(f"Model not found locally. Downloading to {download_path}...")
-            try:
-                subprocess.run(["gdown", "15Qr-zbFh8A59la6dpcv1Dspt1pB-OY3f", "-O", download_path], check=True)
-                model_path = download_path
-                print(f"Successfully downloaded model to {model_path}")
-            except Exception as e:
-                print(f"Failed to download model: {e}")
 
         vecnorm_path = None
         for path in vecnorm_paths:
