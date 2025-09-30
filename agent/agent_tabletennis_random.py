@@ -1,6 +1,7 @@
 import os
 import pickle
 import time
+import subprocess
 
 import copy
 import numpy as np
@@ -59,6 +60,17 @@ class Policy:
             if os.path.exists(path):
                 model_path = path
                 break
+
+        # Download from Google Drive
+        if not model_path:
+            download_path = os.path.join(os.path.dirname(__file__), "rl_model_9072096_steps.zip")
+            print(f"Model not found locally. Downloading to {download_path}...")
+            try:
+                subprocess.run(["gdown", "15Qr-zbFh8A59la6dpcv1Dspt1pB-OY3f", "-O", download_path], check=True)
+                model_path = download_path
+                print(f"Successfully downloaded model to {model_path}")
+            except Exception as e:
+                print(f"Failed to download model: {e}")
 
         vecnorm_path = None
         for path in vecnorm_paths:
