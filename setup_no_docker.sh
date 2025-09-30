@@ -19,7 +19,7 @@ PassDocker=true
 evalai challenges --participant
 if [ $? -eq 0 ]; then
     PassEvalAI=true
-    printf "${GreenBK}EvalAI: Passed!${RC} \n"
+    printf "${then}EvalAI: Passed!${RC} \n"
 else
     printf "${RedBK}The team doesn't seem to have a valid EvalAI account!${RC} \n"
     echo FAIL

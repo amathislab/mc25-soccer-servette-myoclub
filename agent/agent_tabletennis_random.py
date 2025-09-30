@@ -9,23 +9,24 @@ import evaluation_pb2
 import evaluation_pb2_grpc
 import grpc
 import gymnasium as gym
+from stable_baselines3 import PPO
 
 from utils import RemoteConnection
 
 """
 Define your custom observation keys here
 """
-custom_obs_keys = [ 
-    'pelvis_pos', 
-    'body_qpos', 
-    'body_qvel', 
-    'ball_pos', 
-    'ball_vel', 
-    'paddle_pos', 
-    'paddle_vel', 
-    'paddle_ori', 
-    'reach_err', 
-    'touching_info', 
+custom_obs_keys = [
+    'pelvis_pos',
+    'body_qpos',
+    'body_qvel',
+    'ball_pos',
+    'ball_vel',
+    'paddle_pos',
+    'paddle_vel',
+    'paddle_ori',
+    'reach_err',
+    'touching_info',
     'act',
 ]
 
@@ -40,8 +41,59 @@ class Policy:
     def __init__(self, env):
         self.action_space = env.action_space
 
-    def __call__(self, env):
-        return self.action_space.sample()
+        # Load trained PPO policy
+        possible_paths = [
+            "rl_model_9072096_steps.zip",
+            "agent/rl_model_9072096_steps.zip",
+            os.path.join(os.path.dirname(__file__), "rl_model_9072096_steps.zip"),
+        ]
+
+        vecnorm_paths = [
+            "rl_model_vecnormalize_9072096_steps.pkl",
+            "agent/rl_model_vecnormalize_9072096_steps.pkl",
+            os.path.join(os.path.dirname(__file__), "rl_model_vecnormalize_9072096_steps.pkl"),
+        ]
+
+        model_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                model_path = path
+                break
+
+        vecnorm_path = None
+        for path in vecnorm_paths:
+            if os.path.exists(path):
+                vecnorm_path = path
+                break
+
+        if model_path and vecnorm_path:
+            model = PPO.load(model_path, device="cpu")
+            self.policy = model.policy
+
+            with open(vecnorm_path, "rb") as f:
+                self.vecnorm = pickle.load(f)
+            self.vecnorm.training = False
+
+            print(f"Loaded trained PPO policy from {model_path}")
+            self.use_trained_model = True
+        else:
+            print(f"Model files not found. Using random policy.")
+            self.use_trained_model = False
+            self.policy = None
+            self.vecnorm = None
+
+    def __call__(self, obs):
+        if not self.use_trained_model:
+            return self.action_space.sample()
+
+        if isinstance(obs, tuple):
+            obs = obs[0]
+        obs = np.asarray(obs, dtype=np.float32).flatten()
+
+        norm_obs = self.vecnorm.normalize_obs(obs)
+        action, _ = self.policy.predict(norm_obs, deterministic=False)
+
+        return action
 
 def get_custom_observation(rc, obs_keys):
     """
@@ -80,7 +132,7 @@ while not flat_completed:
     ret = 0
 
     print(f"PINGPONG: Start Resetting the environment and get 1st obs of iter {trial}")
-    
+
     obs = rc.reset()
 
     print(f"Trial: {trial}, flat_completed: {flat_completed}")
@@ -88,8 +140,8 @@ while not flat_completed:
     while not flag_trial:
 
         ################################################
-        ## Replace with your trained policy.
-        action = rc.action_space.sample()
+        ## Using trained PPO policy
+        action = policy(obs)
         ################################################
 
         base = rc.act_on_environment(action)

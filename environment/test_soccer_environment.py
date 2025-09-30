@@ -42,9 +42,20 @@ class evaluator_environment:
         self.normalize_act = self.DEFAULT_NORMALIZE_ACT
 
         self.environment = environment
-        self.env = gym.make(self.environment, 
-                            obs_keys=self.obs_output_keys, 
-                            normalize_act=self.normalize_act) 
+        # Use same config as successful evaluation
+        env_config = {
+            'obs_keys': self.obs_output_keys,
+            'normalize_act': self.normalize_act,
+            'weighted_reward_keys': {
+                'goal_scored': 1000.0, 'time_cost': 0.0, 'act_reg': 0.0,
+                'pain': -5.0, 'sparse': 0.0, 'solved': 1.0, 'done': 0.0
+            },
+            'reset_type': 'random',
+            'min_agent_spawn_distance': 1,
+            'random_vel_range': [5.0, 5.0],
+            'goalkeeper_probabilities': [0.1, 0.45, 0.45]
+        }
+        self.env = gym.make(self.environment, **env_config) 
 
     def get_output_keys(self):
         print(self.env.obs_keys)
@@ -59,9 +70,20 @@ class evaluator_environment:
         self._reInitEnvironment()
 
     def _reInitEnvironment(self):
-        self.env = gym.make(self.environment, 
-                            obs_keys=self.obs_output_keys, 
-                            normalize_act=self.normalize_act)
+        # Use same config as initial environment creation
+        env_config = {
+            'obs_keys': self.obs_output_keys,
+            'normalize_act': self.normalize_act,
+            'weighted_reward_keys': {
+                'goal_scored': 1000.0, 'time_cost': 0.0, 'act_reg': 0.0,
+                'pain': -5.0, 'sparse': 0.0, 'solved': 1.0, 'done': 0.0
+            },
+            'reset_type': 'random',
+            'min_agent_spawn_distance': 1,
+            'random_vel_range': [5.0, 5.0],
+            'goalkeeper_probabilities': [0.1, 0.45, 0.45]
+        }
+        self.env = gym.make(self.environment, **env_config)
 
     def reset(self):
         return self.env.reset()
@@ -135,7 +157,7 @@ class Environment(evaluation_pb2_grpc.EnvironmentServicer):
             env.feedback = env.env.step(action)
 
         feedback = [env.feedback[0],env.feedback[1],False]
-        if self.iter == 10:
+        if self.iter == 200:
             feedback = [env.feedback[0],env.feedback[1],True]
             if self.repetition == 5:
                 EVALUATION_COMPLETED = True
@@ -173,8 +195,8 @@ def main():
     evaluation_pb2_grpc.add_EnvironmentServicer_to_server(
         Environment(challenge_pk, phase_pk, submission_pk, server), server
     )
-    print("Starting server. Listening on port 8086.")
-    server.add_insecure_port("[::]:8086")
+    print("Starting server. Listening on port 8089.")
+    server.add_insecure_port("[::]:8089")
     server.start()
     try:
         while not EVALUATION_COMPLETED:
