@@ -43,15 +43,15 @@ class Policy:
 
         # Load trained PPO policy from best_model
         possible_paths = [
-            "best_model.zip",
-            "agent/best_model.zip",
-            os.path.join(os.path.dirname(__file__), "best_model.zip"),
+            "best_model_beta.zip",
+            "agent/best_model_beta.zip",
+            os.path.join(os.path.dirname(__file__), "best_model_beta.zip"),
         ]
 
         vecnorm_paths = [
-            "vecnormalize.pkl",
-            "agent/vecnormalize.pkl",
-            os.path.join(os.path.dirname(__file__), "vecnormalize.pkl"),
+            "vecnormalize_beta.pkl",
+            "agent/vecnormalize_beta.pkl",
+            os.path.join(os.path.dirname(__file__), "vecnormalize_beta.pkl"),
         ]
 
         model_path = None
@@ -77,7 +77,7 @@ class Policy:
             print(f"Loaded trained PPO policy from {model_path}")
             self.use_trained_model = True
         else:
-            print(f"Model files not found. Using random policy.")
+            print("Model files not found. Using random policy.")
             self.use_trained_model = False
             self.policy = None
             self.vecnorm = None
