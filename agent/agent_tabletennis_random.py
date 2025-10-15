@@ -43,15 +43,15 @@ class Policy:
 
         # Load trained PPO policy from best_model
         possible_paths = [
-            "best_model_beta.zip",
-            "agent/best_model_beta.zip",
-            os.path.join(os.path.dirname(__file__), "best_model_beta.zip"),
+            "best_model_beta_p2.zip",
+            "agent/best_model_beta_p2.zip",
+            os.path.join(os.path.dirname(__file__), "best_model_beta_p2.zip"),
         ]
 
         vecnorm_paths = [
-            "vecnormalize_beta.pkl",
-            "agent/vecnormalize_beta.pkl",
-            os.path.join(os.path.dirname(__file__), "vecnormalize_beta.pkl"),
+            "vecnormalize_beta_p2.pkl",
+            "agent/vecnormalize_beta_p2.pkl",
+            os.path.join(os.path.dirname(__file__), "vecnormalize_beta_p2.pkl"),
         ]
 
         model_path = None
